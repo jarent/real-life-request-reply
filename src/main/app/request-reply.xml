@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.4.2"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd 
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<flow name="request-reply-flow" doc:name="request-reply-flow">
+		<http:inbound-endpoint exchange-pattern="request-response"
+			host="localhost" port="8181" path="requesReply" doc:name="HTTP" />
+		<transactional action="ALWAYS_BEGIN" doc:name="Transactional">
+			<request-reply doc:name="Request-Reply">
+				<vm:outbound-endpoint exchange-pattern="one-way"
+					path="request" doc:name="VM" >
+					<vm:transaction action="NOT_SUPPORTED"/>
+				</vm:outbound-endpoint>
+				<vm:inbound-endpoint exchange-pattern="one-way"
+					path="reply" doc:name="VM" >
+					<vm:transaction action="NOT_SUPPORTED"/>
+				</vm:inbound-endpoint>	
+			</request-reply>		
+			<foreach batchSize="3">											
+				<vm:outbound-endpoint path="finalMessage" />
+				<logger message="Final Message sent" level="INFO"
+				category="MainFlow" doc:name="Logger" />
+			</foreach>
+			<logger message="All tasks finished: #[payload]" level="INFO"
+				category="MainFlow" doc:name="Logger" />
+		</transactional>
+	</flow>
+
+	<flow name="request-reply-long-task-split" doc:name="long-task-split" processingStrategy="synchronous">
+		<vm:inbound-endpoint exchange-pattern="one-way"
+			path="request" doc:name="request" />	
+		<logger message="Split chunk of tasks" level="INFO"
+				category="MainFlow" doc:name="Logger" />						
+		<collection-splitter enableCorrelation="ALWAYS"
+			doc:name="Split records for chunks to Long Running Task" />
+		<vm:outbound-endpoint exchange-pattern="one-way"
+			path="process" doc:name="process" />		
+	</flow>
+	
+	
+	<queued-asynchronous-processing-strategy name="limitThreads"  maxThreads="80" doc:name="Queued Asynchronous Processing Strategy"/>
+	<flow name="request-reply-long-task-aggr" doc:name="long-task-aggr" processingStrategy="limitThreads">		
+		<vm:inbound-endpoint exchange-pattern="one-way"
+			path="process" doc:name="process" />
+		<logger message="Task started" level="INFO"
+				category="MainFlow" doc:name="Logger" />		
+		<flow-ref name="call-LongRunningTask" doc:name="Call Long Running Task" />
+		<collection-aggregator failOnTimeout="true"
+			doc:name="Aggregate Gryphon Results" timeout="120000" />
+		<vm:outbound-endpoint exchange-pattern="one-way"
+			path="reply" doc:name="reply" />
+	</flow>
+
+
+</mule>  
+        

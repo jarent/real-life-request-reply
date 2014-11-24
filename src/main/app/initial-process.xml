@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.4.2"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd 
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<flow name="initial-process-flow" doc:name="initial-process-flow">
+		<http:inbound-endpoint exchange-pattern="request-response"
+			host="localhost" port="8181" path="initialProcess" doc:name="HTTP" />
+		<transactional action="ALWAYS_BEGIN" doc:name="Transactional">
+			<foreach batchSize="3">
+				<foreach>
+					<flow-ref name="call-LongRunningTask" doc:name="Call Long Running Task" />
+				</foreach>
+				<vm:outbound-endpoint path="finalMessage" />
+				<logger message="Final Message sent" level="INFO"
+				category="MainFlow" doc:name="Logger" />
+			</foreach>
+			<logger message="All tasks finished: #[payload]" level="INFO"
+				category="MainFlow" doc:name="Logger" />
+		</transactional>
+	</flow>
+</mule>  
+        

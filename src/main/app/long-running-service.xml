@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	
+	<http:connector name="LongRunning_HTTP_Connector" doc:name="Long_Task_HTTP_Connector">
+		<receiver-threading-profile maxThreadsActive="80"/>
+		<dispatcher-threading-profile maxThreadsActive="80"/>
+	</http:connector>
+	
+	
+	 <flow name="call-LongRunningTask" doc:name="call-LongRunningTask" processingStrategy="synchronous">
+    	<http:outbound-endpoint address="http://localhost:5555" doc:name="HTTP" exchange-pattern="request-response" method="POST" connector-ref="LongRunning_HTTP_Connector"/>
+    	<choice doc:name="Choice">
+			<when expression="#[message.inboundProperties['http.status'] == 200]">
+				<logger message="Task processed" level="INFO"
+					category="LongRunningTask" doc:name="Logger" />								
+			</when>			
+			<otherwise>
+				<logger message="3rd party failed - stop processing" level="ERROR"
+					category="LongRunningTask" doc:name="Logger" />	
+				<scripting:component doc:name="Throw Process exception - RETRY">
+					<scripting:script engine="Groovy"><![CDATA[					
+					throw new RuntimeException()
+					]]>
+					</scripting:script>
+				</scripting:component>
+			</otherwise>
+		</choice>
+    </flow>	
+	
+	 <flow name="LongRunningTask" doc:name="LongRunningTask">	
+		<http:inbound-endpoint exchange-pattern="request-response"
+			host="localhost" port="5555" doc:name="HTTP" connector-ref="LongRunning_HTTP_Connector"/>		   
+		  <scripting:component doc:name="Sleep 1 s ">
+            <scripting:script engine="Groovy"><![CDATA[Thread.sleep(1000)            
+return payload
+			]]></scripting:script>
+        </scripting:component>
+	</flow>
+	
+	
+	
+</mule>
