@@ -9,6 +9,8 @@ import com.google.common.collect.Lists;
 
 public class RequestReplyTest extends FunctionalMunitSuite {
 	
+	private final static String SAMPLE_INPUT_10_RECORDS = "1,2,3,4,5,6,7,8,9,10";
+	
 	@Override
 	protected String getConfigResources() {
 			return   "initial-process.xml, long-running-service.xml, request-reply.xml";
@@ -28,24 +30,30 @@ public class RequestReplyTest extends FunctionalMunitSuite {
 	@Test
 	public void shouldInovokeLongRunningProcessSequentially() throws Exception {
 		
-		 runFlow("initial-process-flow" , testEvent("1,2,3,4,5,6,7,8,9,10".split(",")));	
+		 runFlow("initial-process-flow" , testEvent(SAMPLE_INPUT_10_RECORDS.split(",")));	
 		
 	}
 	
 	@Test
 	public void shouldInovokeLongRunningProcessConcurrently() throws Exception {
 		
-		 runFlow("request-reply-flow" , testEvent("1,2,3,4,5,6,7,8,9,10".split(",")));	
+		 runFlow("request-reply-flow" , testEvent(SAMPLE_INPUT_10_RECORDS.split(",")));	
 		
 	}
 	
 	@Test
 	public void shouldFinishFastForLargeInputData() throws Exception {
 		
+		 StringBuilder sampleInput1000Records = new StringBuilder();
+		 for (int i = 0; i <= 100; ++i) {
+			 sampleInput1000Records.append(SAMPLE_INPUT_10_RECORDS);
+			 if (i != 100) {
+				 sampleInput1000Records.append(",");
+			 }
+		 }
+		
 		 runFlow("request-reply-flow" , testEvent(
-				("1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10," +
-		 		"1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10," +
-		 		"1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10,1,2,3,4,5,6,7,8,9,10").split(",")));	
+				 sampleInput1000Records.toString().split(",")));	
 		
 	}
 
