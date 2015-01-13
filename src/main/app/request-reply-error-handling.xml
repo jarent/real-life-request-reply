@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	
+	
+	<queued-asynchronous-processing-strategy name="limitThreadsErrorHandling"  maxThreads="80" doc:name="Queued Asynchronous Processing Strategy"/>
+	
+	 <catch-exception-strategy name="StopRequestReplyExceptionStrategy">					
+		<choice doc:name="Choice">
+			<when expression="#[message.correlationId != null]">
+				<logger level="ERROR" message="Long task stopped due to exception" doc:name="Log Processing Error"/>	
+				<set-payload value="#[exception.message]" doc:name="Set Payload to original value"/>
+				<set-property propertyName="MULE_CORRELATION_SEQUENCE" value="#['']" doc:name="Property"/>	
+				<!-- Set up failure status to mark error -->						
+				<set-property propertyName="longTaskProcessingStatus" value="terminated" doc:name="Set status to 'Terminated'"></set-property>
+	   			<vm:outbound-endpoint exchange-pattern="one-way" path="reply"  doc:name="response"/>									
+			</when>			
+			<otherwise>
+				<logger level="ERROR" message="Aggregate timeout - just give up. " doc:name="Log Aggregate Timeout Error"/>
+			</otherwise>
+		</choice>	
+	</catch-exception-strategy>
+    <flow name="request-reply-error-handling-flow" doc:name="request-reply-error-handling-flow">
+		<http:inbound-endpoint exchange-pattern="request-response"
+			host="localhost" port="8181" path="requesReply" doc:name="HTTP" />
+		<transactional action="ALWAYS_BEGIN" doc:name="Transactional">
+			<request-reply doc:name="Request-Reply" timeout="11000">
+				<vm:outbound-endpoint exchange-pattern="one-way"
+					path="request" doc:name="VM" >
+					<vm:transaction action="NOT_SUPPORTED"/>
+				</vm:outbound-endpoint>
+				<vm:inbound-endpoint exchange-pattern="one-way"
+					path="reply" doc:name="VM" >
+					<vm:transaction action="NOT_SUPPORTED"/>
+				</vm:inbound-endpoint>	
+			</request-reply>		
+			<choice doc:name="Choice">
+				<when expression="#[message.inboundProperties['longTaskProcessingStatus'] == 'terminated']">
+					<logger message="Processing stopped due to an error" level="INFO"
+						category="MainFlow" doc:name="Processing Failed Logger" />
+				</when>
+				<otherwise>
+					<foreach batchSize="3" doc:name="For Each">											
+						<vm:outbound-endpoint path="finalMessage" doc:name="VM"/>
+						<logger message="Final Message sent" level="INFO"
+						category="MainFlow" doc:name="Logger" />
+					</foreach>
+					<logger message="All tasks finished: #[payload]" level="INFO"
+						category="MainFlow" doc:name="Logger" />
+				</otherwise>	
+			</choice>			
+		</transactional>
+	</flow>
+    <flow name="request-reply-long-task-split-with-error-handling" doc:name="request-reply-long-task-split-with-error-handling" processingStrategy="synchronous">
+		<vm:inbound-endpoint exchange-pattern="one-way"
+			path="request" doc:name="request" />	
+		<logger message="Split chunk of tasks" level="INFO"
+				category="MainFlow" doc:name="Logger" />						
+		<collection-splitter enableCorrelation="ALWAYS"
+			doc:name="Split records for chunks to Long Running Task" />
+		<vm:outbound-endpoint exchange-pattern="one-way"
+			path="process" doc:name="process" />	
+		<exception-strategy ref="StopRequestReplyExceptionStrategy" doc:name="Reference Exception Strategy"/> 		
+	</flow>
+    <flow name="request-reply-long-task-aggr-with-error-handling" doc:name="request-reply-long-task-aggr-with-error-handling" processingStrategy="limitThreadsErrorHandling">		
+		<vm:inbound-endpoint exchange-pattern="one-way"
+			path="process" doc:name="process" />
+		<logger message="Task started" level="INFO"
+				category="MainFlow" doc:name="Logger" />		
+		<flow-ref name="call-LongRunningTask" doc:name="Call Long Running Task" />
+		<collection-aggregator failOnTimeout="true"
+			doc:name="Aggregate Results" timeout="10000" />
+		<vm:outbound-endpoint exchange-pattern="one-way"
+			path="reply" doc:name="reply" />
+		<exception-strategy ref="StopRequestReplyExceptionStrategy" doc:name="Reference Exception Strategy"/> 	
+	</flow>
+
+</mule>  
+        

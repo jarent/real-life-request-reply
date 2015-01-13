@@ -17,7 +17,9 @@ http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor
 	
 	
 	 <flow name="call-LongRunningTask" doc:name="call-LongRunningTask" processingStrategy="synchronous">
-    	<http:outbound-endpoint address="http://localhost:5555" doc:name="HTTP" exchange-pattern="request-response" method="POST" connector-ref="LongRunning_HTTP_Connector"/>
+    	<http:outbound-endpoint address="http://localhost:5555" doc:name="HTTP" exchange-pattern="request-response" 
+    	responseTimeout="20000"
+    	method="POST" connector-ref="LongRunning_HTTP_Connector"/>
     	<choice doc:name="Choice">
 			<when expression="#[message.inboundProperties['http.status'] == 200]">
 				<logger message="Task processed" level="INFO"
@@ -39,7 +41,7 @@ http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/cor
 	 <flow name="LongRunningTask" doc:name="LongRunningTask">	
 		<http:inbound-endpoint exchange-pattern="request-response"
 			host="localhost" port="5555" doc:name="HTTP" connector-ref="LongRunning_HTTP_Connector"/>		   
-		  <scripting:component doc:name="Sleep 1 s ">
+		  <scripting:component doc:name="Long running activity">
             <scripting:script engine="Groovy"><![CDATA[Thread.sleep(1000)            
 return payload
 			]]></scripting:script>
